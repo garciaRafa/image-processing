@@ -155,3 +155,21 @@ Image normalizeToByteRange(const Image& img) {
         out.data[i] = (range > 0.0f) ? (img.data[i] - lo) * 255.0f / range : 0.0f;
     return out;
 }
+
+Image normalizeSymmetric(const Image& img, float percentile) {
+    Image out(img.width, img.height, 128.0f);
+    if (img.empty()) return out;
+    std::vector<float> magnitudes(img.data.size());
+    for (size_t i = 0; i < img.data.size(); ++i) magnitudes[i] = std::fabs(img.data[i]);
+    const float fraction = std::clamp(percentile, 0.0f, 100.0f) / 100.0f;
+    const size_t k = static_cast<size_t>(fraction * static_cast<float>(magnitudes.size() - 1));
+    std::nth_element(magnitudes.begin(), magnitudes.begin() + static_cast<std::ptrdiff_t>(k),
+                     magnitudes.end());
+    const float limit = magnitudes[k];
+    if (limit <= 0.0f) return out;
+    for (size_t i = 0; i < img.data.size(); ++i) {
+        const float v = std::clamp(img.data[i] / limit, -1.0f, 1.0f);
+        out.data[i] = 128.0f + 127.0f * v;
+    }
+    return out;
+}

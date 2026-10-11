@@ -10,6 +10,7 @@ endif()
 add_executable(pdi
   src/main.cpp
   src/image.cpp
+  src/convolution.cpp
   src/stb_impl.cpp)
 
 target_include_directories(pdi PRIVATE src external)

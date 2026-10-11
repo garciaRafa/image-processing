@@ -35,3 +35,9 @@ void saveImage(const Image& img, const std::string& path);
 // Linearly maps [min, max] of the image to [0, 255]. Useful for displaying
 // results that fall outside the 8-bit range, such as high-pass outputs.
 Image normalizeToByteRange(const Image& img);
+
+// Displays a signed response (e.g. Laplacian) with zero mapped to mid-grey
+// (128). Values are divided by the given percentile of |value| and clipped to
+// [-1, 1], so a few extreme pixels do not compress the typical edge response
+// into a narrow band of greys, as plain min-max scaling would.
+Image normalizeSymmetric(const Image& img, float percentile = 99.0f);
