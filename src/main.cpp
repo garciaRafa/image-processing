@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "convolution.hpp"
+#include "histogram.hpp"
 #include "image.hpp"
 
 namespace {
@@ -17,7 +18,9 @@ void printUsage(const char* program) {
         << "  " << program << " convert <input> <output.pgm|output.png>\n"
         << "  " << program << " conv <input> <output> <kernel> [args]\n"
         << "      kernels: mean <d> | gaussian <d> <sigma> | laplacian4 | laplacian8 |\n"
-        << "               sharpen | file <kernel.txt>\n";
+        << "               sharpen | file <kernel.txt>\n"
+        << "  " << program << " histeq <input> <output> [histogram_prefix]\n"
+        << "      writes <prefix>_before.csv and <prefix>_after.csv if a prefix is given\n";
 }
 
 // Saves a filter result. Kernels whose weights sum to zero (pure high-pass,
@@ -80,6 +83,29 @@ int runConv(const std::vector<std::string>& args) {
     return 0;
 }
 
+int runHistEq(const std::vector<std::string>& args) {
+    if (args.size() != 2 && args.size() != 3) return -1;
+    const Image input = loadImage(args[0]);
+    const Image output = equalizeHistogram(input);
+    saveImage(output, args[1]);
+
+    const auto describe = [](const char* label, const Image& img) {
+        const auto [lo, hi] = std::minmax_element(img.data.begin(), img.data.end());
+        const Histogram hist = computeHistogram(img);
+        const auto used = std::count_if(hist.begin(), hist.end(), [](auto n) { return n > 0; });
+        std::cout << label << ": range [" << *lo << ", " << *hi << "], " << used
+                  << " distinct levels\n";
+    };
+    describe("Input ", input);
+    describe("Output", output);
+
+    if (args.size() == 3) {
+        saveHistogramCsv(computeHistogram(input), args[2] + "_before.csv");
+        saveHistogramCsv(computeHistogram(output), args[2] + "_after.csv");
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -95,6 +121,7 @@ int main(int argc, char** argv) {
         if (command == "info") status = runInfo(args);
         else if (command == "convert") status = runConvert(args);
         else if (command == "conv") status = runConv(args);
+        else if (command == "histeq") status = runHistEq(args);
 
         if (status == -1) {
             printUsage(argv[0]);
