@@ -13,9 +13,15 @@ add_executable(pdi
   src/convolution.cpp
   src/histogram.cpp
   src/median.cpp
+  src/hfe.cpp
   src/stb_impl.cpp)
 
-target_include_directories(pdi PRIVATE src external)
+# FFTW3 (Question 5). On Ubuntu: sudo apt install libfftw3-dev
+find_path(FFTW3_INCLUDE_DIR fftw3.h REQUIRED)
+find_library(FFTW3_LIBRARY fftw3 REQUIRED)
+
+target_include_directories(pdi PRIVATE src external ${FFTW3_INCLUDE_DIR})
+target_link_libraries(pdi PRIVATE ${FFTW3_LIBRARY} m)
 target_compile_options(pdi PRIVATE -Wall -Wextra)
 
 # Third-party code: do not report its warnings.

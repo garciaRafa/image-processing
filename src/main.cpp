@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "convolution.hpp"
+#include "hfe.hpp"
 #include "histogram.hpp"
 #include "image.hpp"
 #include "median.hpp"
@@ -23,7 +24,9 @@ void printUsage(const char* program) {
         << "               sharpen | file <kernel.txt>\n"
         << "  " << program << " histeq <input> <output> [histogram_prefix]\n"
         << "      writes <prefix>_before.csv and <prefix>_after.csv if a prefix is given\n"
-        << "  " << program << " median <input> <output> [d=3] [iterations=1]\n";
+        << "  " << program << " median <input> <output> [d=3] [iterations=1]\n"
+        << "  " << program << " hfe <input> <output> <k1> <k2> [d0=40] [gaussian|butterworth] [order=2]\n"
+        << "  " << program << " spectrum <input> <output>\n";
 }
 
 // Saves a filter result. Kernels whose weights sum to zero (pure high-pass,
@@ -126,6 +129,46 @@ int runMedian(const std::vector<std::string>& args) {
     return 0;
 }
 
+int runHfe(const std::vector<std::string>& args) {
+    if (args.size() < 4 || args.size() > 7) return -1;
+    HfeParams params;
+    params.k1 = std::stod(args[2]);
+    params.k2 = std::stod(args[3]);
+    if (args.size() >= 5) params.d0 = std::stod(args[4]);
+    if (args.size() >= 6) {
+        if (args[5] == "gaussian") params.type = HighPassType::Gaussian;
+        else if (args[5] == "butterworth") params.type = HighPassType::Butterworth;
+        else throw std::invalid_argument("Unknown high-pass type '" + args[5] + "'");
+    }
+    if (args.size() == 7) params.order = std::stoi(args[6]);
+
+    const Image input = loadImage(args[0]);
+    const Image output = highFrequencyEmphasis(input, params);
+    // With k1 = 0 the result is a pure high-pass response, signed and centred
+    // on zero, so it is displayed like the Laplacian (zero at mid-grey).
+    // Otherwise values outside [0, 255] are clipped.
+    if (params.k1 == 0.0) saveImage(normalizeSymmetric(output), args[1]);
+    else saveImage(output, args[1]);
+
+    const auto [lo, hi] = std::minmax_element(output.data.begin(), output.data.end());
+    const auto clipped = std::count_if(output.data.begin(), output.data.end(),
+                                       [](float v) { return v < -0.5f || v > 255.5f; });
+    std::cout << "HFE k1=" << params.k1 << " k2=" << params.k2 << " D0=" << params.d0 << ": range ["
+              << *lo << ", " << *hi << "], ";
+    if (params.k1 == 0.0)
+        std::cout << "displayed with zero at mid-grey\n";
+    else
+        std::cout << 100.0 * static_cast<double>(clipped) / static_cast<double>(output.data.size())
+                  << "% of pixels clipped\n";
+    return 0;
+}
+
+int runSpectrum(const std::vector<std::string>& args) {
+    if (args.size() != 2) return -1;
+    saveImage(logSpectrum(loadImage(args[0])), args[1]);
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -143,6 +186,8 @@ int main(int argc, char** argv) {
         else if (command == "conv") status = runConv(args);
         else if (command == "histeq") status = runHistEq(args);
         else if (command == "median") status = runMedian(args);
+        else if (command == "hfe") status = runHfe(args);
+        else if (command == "spectrum") status = runSpectrum(args);
 
         if (status == -1) {
             printUsage(argv[0]);
