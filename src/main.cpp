@@ -2,12 +2,14 @@
 #include <cmath>
 #include <exception>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "convolution.hpp"
 #include "histogram.hpp"
 #include "image.hpp"
+#include "median.hpp"
 
 namespace {
 
@@ -20,7 +22,8 @@ void printUsage(const char* program) {
         << "      kernels: mean <d> | gaussian <d> <sigma> | laplacian4 | laplacian8 |\n"
         << "               sharpen | file <kernel.txt>\n"
         << "  " << program << " histeq <input> <output> [histogram_prefix]\n"
-        << "      writes <prefix>_before.csv and <prefix>_after.csv if a prefix is given\n";
+        << "      writes <prefix>_before.csv and <prefix>_after.csv if a prefix is given\n"
+        << "  " << program << " median <input> <output> [d=3] [iterations=1]\n";
 }
 
 // Saves a filter result. Kernels whose weights sum to zero (pure high-pass,
@@ -106,6 +109,23 @@ int runHistEq(const std::vector<std::string>& args) {
     return 0;
 }
 
+int runMedian(const std::vector<std::string>& args) {
+    if (args.size() < 2 || args.size() > 4) return -1;
+    const int d = args.size() >= 3 ? std::stoi(args[2]) : 3;
+    const int iterations = args.size() == 4 ? std::stoi(args[3]) : 1;
+    if (iterations < 1) throw std::invalid_argument("Number of iterations must be at least 1");
+
+    const Image input = loadImage(args[0]);
+    Image output = input;
+    for (int i = 0; i < iterations; ++i) output = medianFilter(output, d);
+    saveImage(output, args[1]);
+
+    std::cout << "Median " << d << "x" << d << " (" << iterations
+              << " pass(es)): impulse pixels (0 or 255) " << impulseFraction(input) << "% -> "
+              << impulseFraction(output) << "%\n";
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -122,6 +142,7 @@ int main(int argc, char** argv) {
         else if (command == "convert") status = runConvert(args);
         else if (command == "conv") status = runConv(args);
         else if (command == "histeq") status = runHistEq(args);
+        else if (command == "median") status = runMedian(args);
 
         if (status == -1) {
             printUsage(argv[0]);
